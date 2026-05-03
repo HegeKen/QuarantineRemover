@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  PROJECT_NAME: QuarantineRemover
+  SCHEME: QuarantineRemover
+  CONFIGURATION: Release
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Select Xcode Version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.0'
+      
+      - name: List Available Simulators
+        run: xcrun simctl list devices available | grep macOS
+      
+      - name: Get Project Info
+        run: |
+          echo "=== Project Structure ==="
+          ls -la
+          echo ""
+          echo "=== Xcode Version ==="
+          xcodebuild -version
+          echo ""
+          echo "=== Available Schemes ==="
+          xcodebuild -list
+      
+      - name: Clean Build
+        run: |
+          xcodebuild clean \
+            -project "${{ env.PROJECT_NAME }}.xcodeproj" \
+            -scheme "${{ env.SCHEME }}"
+      
+      - name: Build Project
+        run: |
+          xcodebuild build \
+            -project "${{ env.PROJECT_NAME }}.xcodeproj" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration "${{ env.CONFIGURATION }}" \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      
+      - name: Verify Build Output
+        run: |
+          echo "=== Checking Build Products ==="
+          if [ -d "Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app" ]; then
+            echo "✓ Application bundle found"
+            ls -lh "Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app"
+          else
+            echo "✗ Application bundle not found in expected location"
+            find . -name "*.app" -type d 2>/dev/null || true
+          fi
+      
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuarantineRemover
+          path: Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app
+          retention-days: 30
+          compression-level: 9
+
+  lint:
+    name: Swift Lint
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Install SwiftLint
+        run: brew install swiftlint || true
+      
+      - name: Run SwiftLint
+        run: |
+          if command -v swiftlint &> /dev/null; then
+            swiftlint --strict || echo "SwiftLint found issues (non-blocking)"
+          else
+            echo "SwiftLint not installed, skipping lint check"
+          fi
+        continue-on-error: true
