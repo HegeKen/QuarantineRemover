@@ -25,9 +25,6 @@ jobs:
         with:
           xcode-version: '15.0'
       
-      - name: List Available Simulators
-        run: xcrun simctl list devices available | grep macOS
-      
       - name: Get Project Info
         run: |
           echo "=== Project Structure ==="
