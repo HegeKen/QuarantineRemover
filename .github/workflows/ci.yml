@@ -38,6 +38,7 @@ jobs:
       
       - name: Clean Build
         run: |
+          rm -rf Build
           xcodebuild clean \
             -project "${{ env.PROJECT_NAME }}.xcodeproj" \
             -scheme "${{ env.SCHEME }}"
