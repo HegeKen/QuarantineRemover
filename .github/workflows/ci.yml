@@ -9,7 +9,7 @@ on:
 env:
   PROJECT_NAME: QuarantineRemover
   SCHEME: QuarantineRemover
-  CONFIGURATION: Release
+  CONFIGURATION: Debug
 
 jobs:
   build:
