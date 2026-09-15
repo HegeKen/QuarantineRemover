@@ -1,13 +1,18 @@
 name: Release
 
 on:
+  # 在 GitHub 网页/API 上「发布 Release」时触发（推荐用法）
+  # 注意：这一步与下面的 tag push 是互补的，不会重复触发
+  release:
+    types: [published]
+  # 推送 v* 标签时触发（如 git push origin v1.0.0）
   push:
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version number (e.g., 1.0.0)'
+      tag:
+        description: 'Tag to build and release (e.g., v1.0.0 or r01)'
         required: true
         type: string
 
@@ -15,32 +20,42 @@ env:
   PROJECT_NAME: QuarantineRemover
   SCHEME: QuarantineRemover
   CONFIGURATION: Release
+  # -derivedDataPath 的产物实际落在 <DERIVED_DATA>/Build/Products/<CONFIGURATION>/
+  DERIVED_DATA: Build
 
 jobs:
   create-release:
     name: Create Release
-    runs-on: macos-14
+    # macos-14 已于 2026-07-06 进入弃用期，2026-11-02 起完全停止支持；
+    # xcode-27 镜像基于 macOS 27 并默认自带 Xcode 27，与 ci.yml 保持一致
+    runs-on: xcode-27
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
-      
-      - name: Select Xcode Version
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '15.0'
+        uses: actions/checkout@v7
       
       - name: Determine Version
         id: version
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            # 手动触发：输入即目标标签，便于对已有标签重新打包
+            TAG="${{ inputs.tag }}"
+            VERSION="${TAG#v}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            # Release 事件：tag 就是 Release 绑定的标签，可能带 v 前缀也可能不带
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION="${TAG#v}"
           else
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            # 推送标签：tag 即被推送的标签
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
           fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $TAG (version: $VERSION)"
       
       - name: Update Version in Info.plist
         run: |
@@ -62,15 +77,23 @@ jobs:
             -scheme "${{ env.SCHEME }}" \
             -configuration "${{ env.CONFIGURATION }}" \
             -destination 'platform=macOS' \
+            -derivedDataPath "${{ env.DERIVED_DATA }}" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
       
       - name: Create DMG
         run: |
+          APP_PATH="${{ env.DERIVED_DATA }}/Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Application bundle not found at $APP_PATH"
+            find . -name "*.app" -type d 2>/dev/null || true
+            exit 1
+          fi
+
           # Create a directory for the DMG contents
           mkdir -p dmg_temp
-          cp -R "Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app" dmg_temp/
+          cp -R "$APP_PATH" dmg_temp/
           
           # Create Applications symlink
           ln -s /Applications dmg_temp/Applications
@@ -88,29 +111,35 @@ jobs:
         run: |
           shasum -a 256 "${{ env.PROJECT_NAME }}-${{ steps.version.outputs.version }}.dmg" > checksum.txt
           cat checksum.txt
+
+          # Release 说明写入文件：action 的 body 输入不会做 shell 展开，
+          # 只有在这里用 heredoc 才能把校验和真正插进去
+          cat > release_body.md <<'EOF'
+          ## What's Changed
+
+          See the commit history for detailed changes.
+
+          ### Installation
+
+          1. Download the `.dmg` file below
+          2. Open the DMG file
+          3. Drag `${{ env.PROJECT_NAME }}.app` to Applications folder
+          4. Right-click the app and select "Open" (first time only)
+
+          ### Checksum
+
+          ```
+          EOF
+          cat checksum.txt >> release_body.md
+          echo '```' >> release_body.md
       
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
-          body: |
-            ## What's Changed
-            
-            See the commit history for detailed changes.
-            
-            ### Installation
-            
-            1. Download `${{ env.PROJECT_NAME }}-${{ steps.version.outputs.version }}.dmg`
-            2. Open the DMG file
-            3. Drag `${{ env.PROJECT_NAME }}.app` to Applications folder
-            4. Right-click the app and select "Open" (first time only)
-            
-            ### Checksum
-            
-            ```
-            $(cat checksum.txt)
-            ```
+          # 绑定到事件对应的标签：Release 事件复用已存在的 Release，tag push 则新建
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: release_body.md
           files: |
             ${{ env.PROJECT_NAME }}-${{ steps.version.outputs.version }}.dmg
             checksum.txt

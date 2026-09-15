@@ -10,6 +10,8 @@ env:
   PROJECT_NAME: QuarantineRemover
   SCHEME: QuarantineRemover
   CONFIGURATION: Debug
+  # -derivedDataPath 的产物实际落在 <DERIVED_DATA>/Build/Products/<CONFIGURATION>/
+  DERIVED_DATA: Build
 
 jobs:
   build:
@@ -44,7 +46,7 @@ jobs:
             -scheme "${{ env.SCHEME }}" \
             -configuration "${{ env.CONFIGURATION }}" \
             -destination 'platform=macOS' \
-            -derivedDataPath Build \
+            -derivedDataPath "${{ env.DERIVED_DATA }}" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
@@ -52,9 +54,10 @@ jobs:
       - name: Verify Build Output
         run: |
           echo "=== Checking Build Products ==="
-          if [ -d "Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app" ]; then
+          APP_PATH="${{ env.DERIVED_DATA }}/Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app"
+          if [ -d "$APP_PATH" ]; then
             echo "✓ Application bundle found"
-            ls -lh "Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app"
+            ls -lh "$APP_PATH"
           else
             echo "✗ Application bundle not found in expected location"
             find . -name "*.app" -type d 2>/dev/null || true
@@ -64,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: QuarantineRemover
-          path: Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app
+          path: Build/Build/Products/${{ env.CONFIGURATION }}/${{ env.PROJECT_NAME }}.app
           retention-days: 30
           compression-level: 9
 

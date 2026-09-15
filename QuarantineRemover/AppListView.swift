@@ -110,15 +110,18 @@ struct AppGridItemView: View {
                 }
                 .frame(width: Self.iconSize, height: Self.iconSize)
 
-                // 应用名称
+                // 应用名称：过长的名称自动换行，最多 3 行后省略
                 Text(app.name)
                     .font(.caption)
                     .foregroundColor(.primary)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .multilineTextAlignment(.center)
-                    .frame(height: 28, alignment: .top)
+                    // 允许纵向撑开，避免被固定高度提前截断为单行
+                    .fixedSize(horizontal: false, vertical: true)
+                    // 保留两行的高度下限，短名称不会让单元变矮
+                    .frame(maxWidth: .infinity, minHeight: 28, alignment: .top)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.vertical, 10)
             .padding(.horizontal, 6)
             .background(
