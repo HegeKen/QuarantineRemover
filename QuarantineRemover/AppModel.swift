@@ -29,35 +29,44 @@ class AppModel: ObservableObject {
     }
     
     func loadInstalledApps() {
-        let applicationPaths = [
-            "/Applications",
-            "/Applications/Utilities",
-            "\(NSHomeDirectory())/Applications"
-        ]
-        
-        var apps: [AppInfo] = []
-        
-        for path in applicationPaths {
-            guard let enumerator = FileManager.default.enumerator(at: URL(fileURLWithPath: path),
-                                                                 includingPropertiesForKeys: [.isApplicationKey],
-                                                                 options: [.skipsHiddenFiles]) else {
-                continue
-            }
-            
-            while let fileURL = enumerator.nextObject() as? URL {
-                if fileURL.pathExtension == "app" {
-                    let appName = fileURL.deletingPathExtension().lastPathComponent
-                    let icon = NSWorkspace.shared.icon(forFile: fileURL.path)
-                    icon.size = NSSize(width: 48, height: 48)
-                    
-                    let appInfo = AppInfo(name: appName, path: fileURL.path, icon: icon)
-                    apps.append(appInfo)
+        // Run heavy file enumeration on a background queue so the UI can render
+        // immediately instead of blocking on icon fetches for hundreds of apps.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let applicationPaths = [
+                "/Applications",
+                "/Applications/Utilities",
+                "\(NSHomeDirectory())/Applications"
+            ]
+
+            var apps: [AppInfo] = []
+
+            for path in applicationPaths {
+                // skipsPackageDescendants stops the enumerator from descending
+                // into .app bundles (Resources/MacOS/Frameworks), which is the
+                // single biggest source of wasted work in the old loop.
+                guard let enumerator = FileManager.default.enumerator(
+                    at: URL(fileURLWithPath: path),
+                    includingPropertiesForKeys: [.isApplicationKey],
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                ) else {
+                    continue
+                }
+
+                while let fileURL = enumerator.nextObject() as? URL {
+                    if fileURL.pathExtension == "app" {
+                        let appName = fileURL.deletingPathExtension().lastPathComponent
+                        // Icons are loaded lazily per-row (see AppRowView) to
+                        // keep this loop fast and the list scroll smooth.
+                        apps.append(AppInfo(name: appName, path: fileURL.path, icon: nil))
+                    }
                 }
             }
-        }
-        
-        DispatchQueue.main.async {
-            self.installedApps = apps.sorted { $0.name < $1.name }
+
+            apps.sort { $0.name < $1.name }
+
+            DispatchQueue.main.async {
+                self.installedApps = apps
+            }
         }
     }
     

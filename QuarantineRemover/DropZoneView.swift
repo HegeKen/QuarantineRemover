@@ -42,14 +42,15 @@ struct DropZoneView: View {
                 Text("拖放应用到此处")
                     .font(.title2)
                     .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                
+                    .foregroundColor(.primary)
+
                 Text("支持 .app 格式的应用程序")
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
             }
         }
-        .frame(height: 200)
+        // 纵向撑满剩余空间，使卡片高度与右侧 App List 面板保持一致
+        .frame(minHeight: 200, maxHeight: .infinity)
         .onDrop(of: [.fileURL], isTargeted: $isHovering) { providers in
             for provider in providers {
                 _ = provider.loadObject(ofClass: URL.self) { url, error in

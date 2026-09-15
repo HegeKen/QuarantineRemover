@@ -15,6 +15,7 @@
 		A1000006 /* AppListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* AppListView.swift */; };
 		A1000007 /* LiquidGlassEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007 /* LiquidGlassEffect.swift */; };
 		A1000008 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A2000009 /* AppIcon.icns */; };
+		A1000009 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 		A2000007 /* LiquidGlassEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassEffect.swift; sourceTree = "<group>"; };
 		A2000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000009 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icns; path = Resources/AppIcon.icns; sourceTree = "<group>"; };
+		A2000010 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A3000001 /* QuarantineRemover.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuarantineRemover.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -58,6 +60,7 @@
 				A2000005 /* DropZoneView.swift */,
 				A2000006 /* AppListView.swift */,
 				A2000007 /* LiquidGlassEffect.swift */,
+				A2000010 /* Theme.swift */,
 				A2000003 /* Assets.xcassets */,
 				A2000009 /* AppIcon.icns */,
 				A2000008 /* Info.plist */,
@@ -100,11 +103,11 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					A6000001 = {
-						CreatedOnToolsVersion = 15.0;
+						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
@@ -150,6 +153,7 @@
 				A1000005 /* DropZoneView.swift in Sources */,
 				A1000006 /* AppListView.swift in Sources */,
 				A1000007 /* LiquidGlassEffect.swift in Sources */,
+				A1000009 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

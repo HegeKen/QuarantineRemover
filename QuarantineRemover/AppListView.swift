@@ -17,18 +17,18 @@ struct AppListView: View {
             // 搜索栏
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-                
+                    .foregroundColor(.secondary)
+
                 TextField("搜索应用...", text: $searchText)
                     .textFieldStyle(PlainTextFieldStyle())
-                    .foregroundColor(.white)
-                
+                    .foregroundColor(.primary)
+
                 if !searchText.isEmpty {
                     Button(action: {
                         searchText = ""
                     }) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -38,71 +38,131 @@ struct AppListView: View {
             .padding(.horizontal)
             .padding(.top)
             
-            // 应用列表
+            // 应用列表：自适应网格，列数随窗口宽度变化
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 110, maximum: 160), spacing: 10)],
+                    spacing: 12
+                ) {
                     ForEach(filteredApps) { app in
-                        AppRowView(app: app, isSelected: model.selectedApps.contains(app.path)) {
+                        AppGridItemView(app: app, isSelected: model.selectedApps.contains(app.path)) {
                             model.toggleSelection(appPath: app.path)
                         }
                     }
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.vertical, 12)
             }
         }
     }
 }
 
-struct AppRowView: View {
+/// 应用图标内存缓存。
+/// NSCache 本身线程安全，无需额外加锁即可在后台线程读写，
+/// 避免网格滚动时反复解析同一图标。
+final class AppIconCache {
+    static let shared = AppIconCache()
+    private let cache = NSCache<NSString, NSImage>()
+
+    private init() {
+        cache.countLimit = 512
+    }
+
+    func icon(for path: String) -> NSImage? {
+        cache.object(forKey: path as NSString)
+    }
+
+    func store(_ icon: NSImage, for path: String) {
+        cache.setObject(icon, forKey: path as NSString)
+    }
+}
+
+/// 网格单元：图标在上、名称在下，点击即切换选中状态。
+struct AppGridItemView: View {
     let app: AppModel.AppInfo
     let isSelected: Bool
     let action: () -> Void
-    
+    @State private var icon: NSImage?
+    @State private var isHovering = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private static let iconSize: CGFloat = 60
+
+    /// 未选中单元的填充/描边基色，随明暗模式取反以保证对比度
+    private var itemTint: Color {
+        colorScheme == .dark ? .white : .black
+    }
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            VStack(spacing: 8) {
                 // 应用图标
                 Group {
-                    if let icon = app.icon {
+                    if let icon = icon {
                         Image(nsImage: icon)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 40, height: 40)
                     } else {
                         Image(systemName: "app")
-                            .font(.system(size: 30))
+                            .font(.system(size: 40))
                             .foregroundColor(.blue)
-                            .frame(width: 40, height: 40)
                     }
                 }
-                
+                .frame(width: Self.iconSize, height: Self.iconSize)
+
                 // 应用名称
                 Text(app.name)
-                    .font(.body)
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                Spacer()
-                
-                // 选择指示器
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundColor(isSelected ? .blue : .gray)
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(height: 28, alignment: .top)
             }
-            .padding(12)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 6)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? Color.blue.opacity(0.2) : Color.white.opacity(0.05))
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(backgroundColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(
-                        isSelected ? Color.blue.opacity(0.5) : Color.white.opacity(0.1),
-                        lineWidth: 1
+                        isSelected ? Color.blue.opacity(0.6) : Color.clear,
+                        lineWidth: 1.5
                     )
             )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help(app.path)
+        // 图标按需懒加载：单元进入可视区后才在后台解析图标，
+        // 优先命中内存缓存，避免滚动时重复解析阻塞主线程。
+        .task(id: app.path) {
+            // 已有图标（来自拖放场景）则直接使用
+            if let existing = app.icon {
+                self.icon = existing
+                return
+            }
+            if let cached = AppIconCache.shared.icon(for: app.path) {
+                self.icon = cached
+                return
+            }
+            let loaded = await Task.detached(priority: .userInitiated) {
+                let image = NSWorkspace.shared.icon(forFile: app.path)
+                image.size = NSSize(width: 128, height: 128)
+                return image
+            }.value
+            AppIconCache.shared.store(loaded, for: app.path)
+            self.icon = loaded
+        }
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color.blue.opacity(0.22)
+        }
+        return isHovering ? itemTint.opacity(0.10) : itemTint.opacity(0.05)
     }
 }
